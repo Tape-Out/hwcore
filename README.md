@@ -1,5 +1,7 @@
 # hwcore
 
+![maturity](https://img.shields.io/badge/maturity-simulated-yellow) ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
+
 Bus-neutral contracts and shared primitives for the Tape-Out IP library, written in Bluespec.
 
 Every IP in the library depends on this package and on nothing else. Bus protocols
@@ -35,4 +37,4 @@ Overlapping ranges are caught by `overlaps` at compile time rather than in simul
 
 ## License
 
-Mulan PSL v2.
+Apache License 2.0.
