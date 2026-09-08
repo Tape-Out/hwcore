@@ -1,0 +1,13 @@
+name: hwcore
+version: 0.1.0
+spec: "0.1"
+identity:
+  slug: hwcore-tapeout-bsv
+  category: infrastructure
+  maturity: simulated
+contract:
+  version: 1
+  ctrl: { shape: flat, aw: 8, dw: 32 }
+emit:
+  - kind: bsv
+    package: Apb4
