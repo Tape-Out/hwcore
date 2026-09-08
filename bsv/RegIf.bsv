@@ -38,4 +38,14 @@ RegRsp#(dw) regErr = RegRsp { rdata: 0, err: True };
 
 function RegRsp#(dw) regOk(Bit#(dw) d) = RegRsp { rdata: d, err: False };
 
+// 发起方那一侧的契约。DMA、缓存、核都要自己发访存，而 RegIf 只描述被访问的一侧。
+// 形态跟控制口一样是扁平的 always_ready 方法：E23 量过，Server 形态在小 IP 上
+// 要贵 39.3%，而这里同样不需要它的排队语义。
+interface RegManager#(numeric type aw, numeric type dw);
+  (* always_ready *) method Bool                valid;
+  (* always_ready *) method RegReq#(aw, dw)     req;
+  (* always_ready, always_enabled *) method Action ready(Bool r);
+  (* always_ready, always_enabled *) method Action resp(Bool v, RegRsp#(dw) x);
+endinterface
+
 endpackage
