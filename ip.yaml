@@ -2,7 +2,9 @@ name: hwcore
 version: 0.1.0
 spec: '0.1'
 kind: library
-lang: [bsv, bh]
+lang:
+- bsv
+- bh
 identity:
   slug: hwcore-tapeout-bsv
   display_name: Bus-neutral contracts and shared primitives
@@ -31,4 +33,5 @@ area:
     tool: ecc
     pdk: ics55
     freq_mhz: 100
-    measured: '2026-09-08'
+    measured: '2026-09-09'
+    gen_digest: sha256:e45d958301d44fec
