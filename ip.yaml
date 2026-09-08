@@ -1,13 +1,11 @@
 name: hwcore
 version: 0.1.0
 spec: "0.1"
+kind: library
+
 identity:
   slug: hwcore-tapeout-bsv
+  display_name: Bus-neutral contracts and shared primitives
+  summary: Contracts and primitives every IP in the library builds on.
   category: infrastructure
   maturity: simulated
-contract:
-  version: 1
-  ctrl: { shape: flat, aw: 8, dw: 32 }
-emit:
-  - kind: bsv
-    package: Apb4
