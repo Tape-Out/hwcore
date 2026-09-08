@@ -1,0 +1,80 @@
+package Cam where
+
+import Vector
+
+-- 按内容并行比对的表：一拍之内所有项一起比。单端口 SRAM 一拍只读得出一项，
+-- 比不了，所以 D38 的「超过约 900 位就上 SRAM 宏」对它不成立——只能触发器
+-- 加比较器。eswitch 的 MAC 学习表、将来的 TLB、cache 的标签阵列都是这个
+-- 形状，共用这一份。
+--
+-- 写成 BH（Bluespec 的 Haskell 语法）而不是 BSV：这里没有一拍一拍的协议，
+-- 全是对一张表的函数式操作——命中是 findIndex，落位是几个候选依次兜底。
+-- 用方程写比用可变结构体挨个赋值短一半，分支也漏不掉。
+
+struct Slot k v =
+    key   :: k
+    val   :: v
+    valid :: Bool
+  deriving (Bits, FShow)
+
+interface (Cam :: # -> * -> * -> *) n k v =
+    lookup :: k -> Maybe v
+    learn  :: k -> v -> Action
+    evict  :: k -> Action
+    flush  :: Action
+    dump   :: Vector n (Slot k v)
+
+-- 模块单子留成多态的。写死 Module 的话，例化它的模块也会被推成 Module，
+-- 而 BSV 那边的模块默认对 IsModule 多态，两边对不上（T0029）。
+mkCam :: (IsModule m c, Bits k kw, Eq k, Bits v vw) => m (Cam n k v)
+mkCam =
+  module
+    let empty :: Slot k v
+        empty = Slot { key = unpack 0; val = unpack 0; valid = False }
+
+    tab :: Vector n (Reg (Slot k v)) <- replicateM (mkReg empty)
+    -- 满了轮换覆盖。老化要一个全局节拍，等交换机接上系统时钟再说。
+    turn :: Reg (UInt (TLog n)) <- mkReg 0
+
+    let slots = map readReg tab
+        holds k s = s.valid && s.key == k
+        isFree s = not s.valid
+
+    interface
+      lookup k =
+        case find (holds k) slots of
+          Just s -> Just s.val
+          Nothing -> Nothing
+
+      learn k v =
+        let mhit  = findIndex (holds k) slots
+            mfree = findIndex isFree slots
+            -- 已经在表里就原地更新，端设备换口时才认得出来；
+            -- 否则先填空位；都满了才轮换覆盖
+            i = case mhit of
+                  Just x -> x
+                  Nothing -> case mfree of
+                               Just x -> x
+                               Nothing -> turn
+            rotate = case mhit of
+                       Just _ -> False
+                       Nothing -> case mfree of
+                                    Just _ -> False
+                                    Nothing -> True
+        in do
+             (select tab i) := Slot { key = k; val = v; valid = True }
+             if rotate
+               then turn := if turn == fromInteger (valueOf n - 1)
+                              then 0 else turn + 1
+               else noAction
+
+      evict k =
+        case findIndex (holds k) slots of
+          Just i -> (select tab i) := empty
+          Nothing -> noAction
+
+      flush = do
+        writeVReg tab (replicate empty)
+        turn := 0
+
+      dump = slots
