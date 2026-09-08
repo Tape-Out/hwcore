@@ -2,6 +2,7 @@ name: hwcore
 version: 0.1.0
 spec: '0.1'
 kind: library
+lang: [bsv, bh]
 identity:
   slug: hwcore-tapeout-bsv
   display_name: Bus-neutral contracts and shared primitives
