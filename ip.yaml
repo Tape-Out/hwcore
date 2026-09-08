@@ -1,11 +1,33 @@
 name: hwcore
 version: 0.1.0
-spec: "0.1"
+spec: '0.1'
 kind: library
-
 identity:
   slug: hwcore-tapeout-bsv
   display_name: Bus-neutral contracts and shared primitives
   summary: Contracts and primitives every IP in the library builds on.
   category: infrastructure
   maturity: simulated
+area:
+  base:
+    fixed: 25.0
+  model: single-point
+  assembly:
+    factor: 1.15
+    error:
+      bound: 0.15
+      sign: two-sided
+      note: 'an assembly is not the sum of its instances: synthesis optimises across
+        the boundary. Measured ratios of assembly to instance sum ran 0.94 to 1.29
+        over 1/2/4 instances at 8/16/32 pins, so this term is an estimate with a two-sided
+        bound, unlike a leaf price which is an upper bound'
+  error:
+    bound: 0.07
+    sign: over
+    note: mkFabric decode measured at 1/2/4/8 instances came out between 24.08 and
+      -78.12; the model takes the maximum because it must never predict under
+  corner:
+    tool: ecc
+    pdk: ics55
+    freq_mhz: 100
+    measured: '2026-09-08'

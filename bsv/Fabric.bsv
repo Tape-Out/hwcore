@@ -15,6 +15,22 @@ function Device#(aw, dw) device(Bit#(aw) base, Bit#(aw) span,
                                 RegIf#(aw, dw) regs, Maybe#(Bool) irq) =
   Device { base: base, span: span, regs: regs, irq: irq };
 
+// 把 IP 自己那点地址宽度接到片上的宽地址。IP 按它在 ip.yaml 里声明的
+// contract.aw 例化，价目表也是照那个宽度量的；换算发生在这里，
+// 而不是把每个 IP 都撑到 32 位——那样量出来的面积对不上账。
+function RegIf#(bw, dw) narrow(RegIf#(nw, dw) r)
+    provisos (Add#(a__, nw, bw));
+  return (interface RegIf;
+    method ActionValue#(RegRsp#(dw)) access(RegReq#(bw, dw) q);
+      let x <- r.access(RegReq { addr:  truncate(q.addr),
+                                 write: q.write,
+                                 wdata: q.wdata,
+                                 wstrb: q.wstrb });
+      return x;
+    endmethod
+  endinterface);
+endfunction
+
 // 地址译码：命中则把局部偏移转给该 IP，未命中回错误。
 // 译码在编译期完全展开，不产生运行时查表。
 module mkFabric#(Vector#(k, Device#(aw, dw)) devs)(RegIf#(aw, dw));
