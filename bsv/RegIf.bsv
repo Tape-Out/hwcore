@@ -41,6 +41,9 @@ function RegRsp#(dw) regOk(Bit#(dw) d) = RegRsp { rdata: d, err: False };
 // 发起方那一侧的契约。DMA、缓存、核都要自己发访存，而 RegIf 只描述被访问的一侧。
 // 形态跟控制口一样是扁平的 always_ready 方法：E23 量过，Server 形态在小 IP 上
 // 要贵 39.3%，而这里同样不需要它的排队语义。
+// 发起方在收到响应之前必须把 valid 与 req 顶着不动。因此「收到响应」
+// 就意味着「请求已被接收」——只做一次一笔的发起方可以不看 ready。
+// 要连发（上一笔还没答就送下一笔）的发起方才必须看。
 interface RegManager#(numeric type aw, numeric type dw);
   (* always_ready *) method Bool                valid;
   (* always_ready *) method RegReq#(aw, dw)     req;
