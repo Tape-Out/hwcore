@@ -48,4 +48,30 @@ interface RegManager#(numeric type aw, numeric type dw);
   (* always_ready, always_enabled *) method Action resp(Bool v, RegRsp#(dw) x);
 endinterface
 
+// RegManager 的对偶：一个**会停顿**的目标。
+//
+// RegIf 的 access 是一次就答的动作值，表达不了「这次答不上来，等我几拍」，
+// 而缓存缺失正是这个形状；RegManager 又只能当发起方。缓存的核这一侧因此
+// 无处安放——这是扁平契约第一次不够用的地方，也是当初契约写「两个 Server」
+// 的理由。这里只补最小的一块：答不上来就把 ready 拉低。
+//
+// 不上整套 Server：E23 量过 Server 在小模块上贵 39.3%，而这里要的不是
+// 排队与背压的全套语义，只是一个「还没好」的信号。
+interface RegTarget#(numeric type aw, numeric type dw);
+  (* always_ready, always_enabled *)
+  method Action req(Bool valid, RegReq#(aw, dw) r);
+  (* always_ready *) method Bool           ready;     // 这一拍收得下吗
+  (* always_ready *) method Bool           rspValid;  // 这一拍有答复吗
+  (* always_ready *) method RegRsp#(dw)    rsp;
+endinterface
+
+// 发起方接目标：一条规则的事。装配的 connect 段生成的就是它。
+module mkPipe#(RegManager#(aw, dw) m, RegTarget#(aw, dw) t)(Empty);
+  rule wire_;
+    t.req(m.valid, m.req);
+    m.ready(t.ready);
+    m.resp(t.rspValid, t.rsp);
+  endrule
+endmodule
+
 endpackage
