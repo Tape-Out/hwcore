@@ -15,8 +15,10 @@ area:
   probe:
     module: mkFabricProbe
     src: tb/Probe.bsv
+    # 同 amba：孤立实测是下界，只核对不写回
+    check: true
   base:
-    fixed: 11.48
+    fixed: 25.0
   model: single-point
   assembly:
     factor: 1.15
