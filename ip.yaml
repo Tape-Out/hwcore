@@ -12,8 +12,11 @@ identity:
   category: infrastructure
   maturity: simulated
 area:
+  probe:
+    module: mkFabricProbe
+    src: tb/Probe.bsv
   base:
-    fixed: 25.0
+    fixed: 11.48
   model: single-point
   assembly:
     factor: 1.15
@@ -27,11 +30,13 @@ area:
   error:
     bound: 0.07
     sign: over
-    note: mkFabric decode measured at 1/2/4/8 instances came out between 24.08 and
-      -78.12; the model takes the maximum because it must never predict under
+    note: mkFabric decode measured at 1/2/4/8 instances came out between 24.08 
+      and -78.12; the model takes the maximum because it must never predict 
+      under
   corner:
     tool: ecc
     pdk: ics55
     freq_mhz: 100
-    measured: '2026-09-10'
-    gen_digest: sha256:814cb0faacc99bfe
+    measured: '2026-09-11'
+    toolchain: bsc 2026.01 · yosys 0.68+195 · ecc 0.1.0a11
+    gen_digest: sha256:17bd97809d42b4e2
