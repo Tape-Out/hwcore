@@ -68,12 +68,102 @@ interface RegTarget#(numeric type aw, numeric type dw);
   (* always_ready *) method RegRsp#(dw)    rsp;
 endinterface
 
-// 发起方接目标：一条规则的事。装配的 connect 段生成的就是它。
+// 发起方接目标。装配的 pipe 段生成的就是它。
+//
+// 发与收分两条规则：有的目标答复是从请求组合出来的（地址图 mkFabricT 就是这样，
+// 零等待的设备当拍答完），那种目标的 rspValid 读的正是 req 写的那条线，同一条
+// 规则里又写又读是 G0004。两条规则仍在同一拍跑，一拍也不多花。
 module mkPipe#(RegManager#(aw, dw) m, RegTarget#(aw, dw) t)(Empty);
-  rule wire_;
+  rule send;
     t.req(m.valid, m.req);
     m.ready(t.ready);
+  endrule
+  rule take;
     m.resp(t.rspValid, t.rsp);
+  endrule
+endmodule
+
+// m 个发起方共用一个会停顿的目标：轮转授予，一笔在途期间不换人。
+//
+// 不设仲裁队列：发起方在收到答复之前顶着 valid 与 req 不动（RegManager 的约定），
+// 所以「记住这一笔是谁的」就够了，不需要标签，也不会乱序。
+//
+// 公平由轮转保证。固定优先级会让缓存一忙起来核就饿死——那是仿真里偶尔看得见、
+// 流片后天天看得见的毛病。
+module mkArb#(Vector#(m, RegManager#(aw, dw)) ms, RegTarget#(aw, dw) t)(Empty)
+    provisos (Add#(1, _x, m));
+  Reg#(Bit#(TLog#(TAdd#(m, 1))))         turn <- mkReg(0);
+  Reg#(Maybe#(Bit#(TLog#(TAdd#(m, 1))))) cur  <- mkReg(tagged Invalid);
+
+  Vector#(m, Wire#(Bool))          gnt  <- replicateM(mkDWire(False));
+  Vector#(m, Wire#(RegRsp#(dw)))   mrsp <- replicateM(
+      mkDWire(RegRsp { rdata: 0, err: False }));
+
+  Wire#(Bool)                     actW <- mkDWire(False);
+  Wire#(Bool)                     goW  <- mkDWire(False);
+  Wire#(Bit#(TLog#(TAdd#(m, 1)))) whoW <- mkDWire(0);
+  Wire#(Bit#(TLog#(TAdd#(m, 1)))) selW <- mkDWire(0);
+
+  rule issue;
+    Bit#(TLog#(TAdd#(m, 1))) s = 0;
+    Bool any = False;
+    // 轮转要在更宽的类型里算：turn + i 最大 2*(m-1)，在索引自己的位宽里会回绕，
+    // 回绕之后那句范围修正就救不回来，某个发起方于是一次也轮不到。
+    // 宽一位就够，而且必须跟着 m 走——写死 Bit#(8) 在 m 大于 128 时反而不够。
+    for (Integer i = 0; i < valueOf(m); i = i + 1) begin
+      Bit#(TAdd#(TLog#(TAdd#(m, 1)), 1)) w8 = zeroExtend(turn) + fromInteger(i);
+      if (w8 >= fromInteger(valueOf(m))) w8 = w8 - fromInteger(valueOf(m));
+      Bit#(TLog#(TAdd#(m, 1))) w = truncate(w8);
+      if (!any && ms[w].valid) begin s = w; any = True; end
+    end
+
+    Bool go = False;
+    RegReq#(aw, dw) rq = unpack(0);
+    Bit#(TLog#(TAdd#(m, 1))) who = 0;
+    Bool act = False;
+    if (cur matches tagged Valid .c) begin
+      who = c;
+      act = True;
+    end else if (any) begin
+      go  = True;
+      rq  = ms[s].req;
+      who = s;
+      act = True;
+    end
+    t.req(go, rq);
+    actW <= act;
+    goW  <= go;
+    whoW <= who;
+    selW <= s;
+  endrule
+
+  // 收答复必须另起一条规则，理由同 mkPipe
+  rule collect;
+    Bool done = actW && t.rspValid;
+    Maybe#(Bit#(TLog#(TAdd#(m, 1)))) ncur = cur;
+    Bit#(TLog#(TAdd#(m, 1)))         nturn = turn;
+    if (done) begin
+      ncur  = tagged Invalid;
+      Bit#(TAdd#(TLog#(TAdd#(m, 1)), 1)) nx = zeroExtend(whoW) + 1;
+      if (nx >= fromInteger(valueOf(m))) nx = 0;
+      nturn = truncate(nx);
+    end else if (goW)
+      ncur = tagged Valid selW;
+    cur  <= ncur;
+    turn <= nturn;
+
+    for (Integer i = 0; i < valueOf(m); i = i + 1)
+      if (done && whoW == fromInteger(i)) begin
+        gnt[i]  <= True;
+        mrsp[i] <= t.rsp;
+      end
+  endrule
+
+  rule drive;
+    for (Integer i = 0; i < valueOf(m); i = i + 1) begin
+      ms[i].ready(gnt[i]);
+      ms[i].resp(gnt[i], mrsp[i]);
+    end
   endrule
 endmodule
 

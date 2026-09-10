@@ -62,6 +62,22 @@ function SlowDevice#(aw, dw) slowDevice(Bit#(aw) base, Bit#(aw) span,
                                         Maybe#(Bool) irq) =
   SlowDevice { base: base, span: span, regs: regs, irq: irq };
 
+// narrow 的会停顿版本。四个方法逐个转，只有地址要截。
+function RegTarget#(bw, dw) narrowT(RegTarget#(nw, dw) r)
+    provisos (Add#(a__, nw, bw));
+  return (interface RegTarget;
+    method Action req(Bool valid, RegReq#(bw, dw) q);
+      r.req(valid, RegReq { addr:  truncate(q.addr),
+                            write: q.write,
+                            wdata: q.wdata,
+                            wstrb: q.wstrb });
+    endmethod
+    method Bool        ready    = r.ready;
+    method Bool        rspValid = r.rspValid;
+    method RegRsp#(dw) rsp      = r.rsp;
+  endinterface);
+endfunction
+
 // 混合地址图：零等待的设备同拍答，慢设备把 ready 拉低让发起方等。
 //
 // 为什么要混：SRAM 宏、ROM 宏、缓存都是同步的，`RegIf` 的 access 是一次就答的

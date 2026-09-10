@@ -3,51 +3,7 @@ package FabTb;
 import Vector::*;
 import RegIf::*;
 import Fabric::*;
-
-// 一个零等待的假设备：写进去存着，读出来还回去。
-module mkFast(RegIf#(8, 32));
-  Reg#(Bit#(32)) v <- mkReg(32'hDEAD0000);
-  method ActionValue#(RegRsp#(32)) access(RegReq#(8, 32) r);
-    if (r.write) v <= r.wdata;
-    return RegRsp { rdata: v, err: False };
-  endmethod
-endmodule
-
-// 一个会停顿的假设备：收到请求之后压 n 拍才答。宏与缓存就是这个形状。
-module mkSlow#(Integer n)(RegTarget#(8, 32));
-  // 规则与 always_enabled 的方法同写这几个量。方法每拍都在，用普通寄存器
-  // 规则就永不触发——CReg 定序：端口 0 归规则、端口 1 归方法。
-  Reg#(Bit#(8))  cnt[2]  <- mkCReg(2, 0);
-  Reg#(Bool)     busy[2] <- mkCReg(2, False);
-  Reg#(Bool)     ansV[2] <- mkCReg(2, False);
-  // 这三个同理：规则读/写、方法也写，全部 CReg 定序，次序与上面一致
-  Reg#(Bit#(32)) v[2]  <- mkCReg(2, 32'hBEEF0000);
-  Reg#(Bool)     wr[2] <- mkCReg(2, False);
-  Reg#(Bit#(32)) wd[2] <- mkCReg(2, 0);
-
-  rule tick;
-    if (busy[0] && cnt[0] == 0) begin
-      busy[0] <= False;
-      ansV[0] <= True;
-      if (wr[0]) v[0] <= wd[0];
-    end else begin
-      if (busy[0]) cnt[0] <= cnt[0] - 1;
-      ansV[0] <= False;
-    end
-  endrule
-
-  method Action req(Bool valid, RegReq#(8, 32) r);
-    if (valid && !busy[1] && !ansV[1]) begin
-      busy[1] <= True;
-      cnt[1]  <= fromInteger(n);
-      wr[1]   <= r.write;
-      wd[1]   <= r.wdata;
-    end
-  endmethod
-  method Bool ready = !busy[1] && !ansV[1];
-  method Bool rspValid = ansV[1];
-  method RegRsp#(32) rsp = RegRsp { rdata: v[1], err: False };
-endmodule
+import Fakes::*;
 
 (* synthesize *)
 module mkFabTb(Empty);
