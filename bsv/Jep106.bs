@@ -1,0 +1,33 @@
+package Jep106 where
+
+-- JEDEC JEP106 厂商号与它在寄存器里的编码。厂商号是若干个续码 0x7f 接最后一个字节，
+-- 最后一个字节的最高位是奇校验；寄存器里只留续码个数与低 7 位：
+--   mvendorid（RISC-V 特权规范 3.1.2）：续码个数 31:7，低 7 位 6:0
+--   SMCCC SOC_ID（Linux drivers/firmware/smccc/soc_id.c）：续码个数 30:24，低 7 位 22:16，SoC 号 15:0
+--   JTAG IDCODE（调试规范 6.1.3，照 IEEE 1149.1）：版本 31:28，零件号 27:12，续码个数模 16 放 11:8，低 7 位 7:1，第 0 位恒 1
+
+struct Jep106 =
+    bank :: UInt 7
+    code :: UInt 7
+  deriving (Bits, Eq, FShow)
+
+-- 参数来自装配清单。越界在编译期报出来，指得回清单里的数，不必等读出一个错的厂商号才发现
+jep106 :: Integer -> Integer -> Jep106
+jep106 b c =
+  if b < 0 || b > 127
+  then error ("JEP106: " +++ integerToString b +++ " continuation codes do not fit in 7 bits")
+  else if c < 0 || c > 126
+  then error ("JEP106: identification code " +++ integerToString c +++ " is not in 0..126, 0x7f is the continuation code")
+  else Jep106 { bank = fromInteger b; code = fromInteger c }
+
+mvendorid :: Jep106 -> Bit 32
+mvendorid j = (zeroExtend (pack j.bank) << 7) | zeroExtend (pack j.code)
+
+socId :: Jep106 -> UInt 16 -> Bit 32
+socId j part = (zeroExtend (pack j.bank) << 24) | (zeroExtend (pack j.code) << 16) | zeroExtend (pack part)
+
+idcode :: Jep106 -> UInt 4 -> UInt 16 -> Bit 32
+idcode j ver part =
+  let bank :: Bit 4
+      bank = truncate (pack j.bank)
+  in  pack ver ++ pack part ++ bank ++ pack j.code ++ (1 :: Bit 1)
