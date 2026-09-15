@@ -39,6 +39,6 @@ area:
     tool: ecc
     pdk: ics55
     freq_mhz: 100
-    measured: '2026-09-11'
+    measured: '2026-09-15'
     toolchain: bsc 2026.01 · yosys 0.68+195 · ecc 0.1.0a11
-    gen_digest: sha256:17bd97809d42b4e2
+    gen_digest: sha256:e13b1e4ca7b0a3ad
