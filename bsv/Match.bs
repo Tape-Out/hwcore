@@ -1,0 +1,39 @@
+package Match where
+
+-- 按内容挑表项：一张表里命中的项里挑秩最大的那一个。精确匹配（学习表、TLB）秩恒为 1，
+-- 最长前缀（路由表）秩是前缀长度。挑法只写一次，表项怎么算命中、怎么排秩由实例给。
+
+import Vector
+import Cam
+
+-- bsc 要求函数依赖写全类的全部变量（T0124）；这里只有两个变量，e -> k 就是全部
+class Match e k | e -> k where
+    matches :: e -> k -> Bool
+    rank    :: e -> UInt 8
+
+-- 精确匹配：键相等就命中，秩恒为 1。实例放在类所在的包里而不是 Cam.bs：改 Cam.bs 会动 eswitch
+-- 与 hart 的生成摘要，价目表与装配锁都要跟着重来。Cam.lookup 这一轮还是原来的 find
+instance (Eq k) => Match (Slot k v) k where
+    matches s k = s.valid && s.key == k
+    rank _ = 1
+
+struct Cand i =
+    hit :: Bool
+    rk  :: UInt 8
+    idx :: UInt i
+  deriving (Bits)
+
+-- 用平衡树 fold 归约：「命中且秩更大的赢，一样大留左边」满足结合律，n 项的比较链是 log n 级，
+-- 与 plic 的 Prio 同一个道理
+best :: (Match e k, Add 1 m n) => Vector n e -> k -> Maybe (UInt (TLog n))
+best tab key =
+  let cand :: Integer -> Cand (TLog n)
+      cand i = let e = tab !! i
+               in  Cand { hit = matches e key; rk = rank e; idx = fromInteger i }
+      better :: Cand (TLog n) -> Cand (TLog n) -> Cand (TLog n)
+      better a b = if b.hit && (not a.hit || b.rk > a.rk) then b else a
+      cands :: Vector n (Cand (TLog n))
+      cands = genWith cand
+      w :: Cand (TLog n)
+      w = fold better cands
+  in  if w.hit then Just w.idx else Nothing

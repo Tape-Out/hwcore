@@ -1,0 +1,18 @@
+package Bus where
+
+-- 一种总线是一个实例：怎么把会停顿的目标绑成这种总线的完成方引脚（bindT），怎么把这种总线的
+-- 完成方引脚收编成会停顿的目标（adopt）。桥于是只有一个泛型定义，加一种总线只加一个实例。
+-- 引脚类型决定地址与数据位宽（函数依赖），TL-UL 的引脚多一个 source 位宽参数也照样当实例。
+
+import RegIf
+
+-- bsc 要求每条函数依赖都把类的全部变量写上（T0124），所以是一条 p -> aw dw，不是两条
+class Bus p aw dw | p -> aw dw where
+    bindT :: RegTarget aw dw -> Module p
+    adopt :: p -> Module (RegTarget aw dw)
+
+-- 下游完成方引脚进，上游完成方引脚出：先收编成中立的会停顿目标，再绑成上游总线
+bridge :: (Bus up aw dw, Bus down aw dw) => down -> Module up
+bridge down = do
+    t <- adopt down
+    bindT t
