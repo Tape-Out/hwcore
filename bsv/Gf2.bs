@@ -1,0 +1,66 @@
+package Gf2 where
+
+-- GF(2) 上的多项式运算。眼下只有 CRC，以后 LFSR 与加扰器也是同一种运算。
+--
+-- CRC 照 Williams《A Painless Guide to CRC Error Detection Algorithms》的 Rocksoft
+-- 模型（WIDTH POLY INIT REFIN REFOUT XOROUT）：宽度是数值类型，其余是值。模型是
+-- 普通的值，编译期给常数就折叠成一张异或网，运行时给寄存器就成了可编程的外设。
+-- bsc 自带的 mkCRC 一次吃一个字节、宽度至少 8，CRC-7 做不了，参数也在编译期钉死。
+--
+-- 步进不满足结合律，按位展开用 foldl，不用平衡树的 fold。
+
+import qualified Vector
+
+struct CrcModel n =
+    poly   :: Bit n
+    seed   :: Bit n
+    refin  :: Bool
+    refout :: Bool
+    xorout :: Bit n
+  deriving (Bits, FShow)
+
+-- 不反射的直接算法：寄存器最高位与输入位相异或，为一就减去多项式
+crcBit :: (Add 1 k n) => CrcModel n -> Bit n -> Bit 1 -> Bit n
+crcBit m c b =
+  let top :: Bit 1
+      top = Vector.last (unpack c) ^ b
+  in  (c << 1) ^ (if top == 1 then m.poly else 0)
+
+-- 反射输入就是低位先进；寄存器照旧不反射，最后在 crcFinal 里整体翻转
+crcByte :: (Add 1 k n) => CrcModel n -> Bit n -> Bit 8 -> Bit n
+crcByte m c d =
+  let bits :: Vector.Vector 8 (Bit 1)
+      bits = unpack d
+  in  Vector.foldl (crcBit m) c (if m.refin then bits else Vector.reverse bits)
+
+crcBytes :: (Add 1 k n) => CrcModel n -> Bit n -> Vector.Vector j (Bit 8) -> Bit n
+crcBytes m c ds = Vector.foldl (crcByte m) c ds
+
+crcFinal :: CrcModel n -> Bit n -> Bit n
+crcFinal m c = (if m.refout then reverseBits c else c) ^ m.xorout
+
+-- 从初值算到终值。初值归库管：交给调用方记着从 seed 开始，漏了也照样编得过
+crcOf :: (Add 1 k n) => CrcModel n -> Vector.Vector j (Bit 8) -> Bit n
+crcOf m ds = crcFinal m (crcBytes m m.seed ds)
+
+-- RevEng 目录里的参数，名字照目录原样
+crc7Mmc :: CrcModel 7
+crc7Mmc = CrcModel { poly = 0x09; seed = 0x00; refin = False; refout = False; xorout = 0x00 }
+
+crc8MaximDow :: CrcModel 8
+crc8MaximDow = CrcModel { poly = 0x31; seed = 0x00; refin = True; refout = True; xorout = 0x00 }
+
+crc15Can :: CrcModel 15
+crc15Can = CrcModel { poly = 0x4599; seed = 0x0000; refin = False; refout = False; xorout = 0x0000 }
+
+crc16Xmodem :: CrcModel 16
+crc16Xmodem = CrcModel { poly = 0x1021; seed = 0x0000; refin = False; refout = False; xorout = 0x0000 }
+
+crc16Ibm3740 :: CrcModel 16
+crc16Ibm3740 = CrcModel { poly = 0x1021; seed = 0xffff; refin = False; refout = False; xorout = 0x0000 }
+
+crc32IsoHdlc :: CrcModel 32
+crc32IsoHdlc = CrcModel { poly = 0x04c11db7; seed = 0xffffffff; refin = True; refout = True; xorout = 0xffffffff }
+
+crc32Iscsi :: CrcModel 32
+crc32Iscsi = CrcModel { poly = 0x1edc6f41; seed = 0xffffffff; refin = True; refout = True; xorout = 0xffffffff }

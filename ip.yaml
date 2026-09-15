@@ -41,4 +41,4 @@ area:
     freq_mhz: 100
     measured: '2026-09-15'
     toolchain: bsc 2026.01 · yosys 0.68+195 · ecc 0.1.0a11
-    gen_digest: sha256:e13b1e4ca7b0a3ad
+    gen_digest: sha256:7e21442f0502fa09
