@@ -18,11 +18,16 @@ struct Slot k v =
   deriving (Bits, FShow)
 
 interface (Cam :: # -> * -> * -> *) n k v =
-    lookup :: k -> Maybe v
-    learn  :: k -> v -> Action
-    evict  :: k -> Action
-    flush  :: Action
-    dump   :: Vector n (Slot k v)
+    lookup  :: k -> Maybe v
+    learn   :: k -> v -> Action
+    evict   :: k -> Action
+    flush   :: Action
+    dump    :: Vector n (Slot k v)
+    -- 这个键此刻学进去会落在哪一槽。与 learn 读同一份状态，调用方同一拍据此
+    -- 给槽配旁挂的数据（eswitch 的老化时间戳）
+    place   :: k -> UInt (TLog n)
+    -- 按槽清掉。老化按槽扫，已经知道是哪一格，不必再按键比一遍
+    clearAt :: UInt (TLog n) -> Action
 
 -- 模块单子留成多态的。写死 Module 的话，例化它的模块也会被推成 Module，
 -- 而 BSV 那边的模块默认对 IsModule 多态，两边对不上（T0029）。
@@ -33,12 +38,21 @@ mkCam =
         empty = Slot { key = unpack 0; val = unpack 0; valid = False }
 
     tab :: Vector n (Reg (Slot k v)) <- replicateM (mkReg empty)
-    -- 满了轮换覆盖。老化要一个全局节拍，等交换机接上系统时钟再说。
+    -- 满了轮换覆盖
     turn :: Reg (UInt (TLog n)) <- mkReg 0
 
     let slots = map readReg tab
         holds k s = s.valid && s.key == k
         isFree s = not s.valid
+        -- 落位只有一种算法，learn 与 place 共用，免得两处漂开：
+        -- 已经在表里就原地更新，端设备换口时才认得出来；否则先填空位；
+        -- 都满了才轮换覆盖。第二项说这一次是不是占了轮换的那一格
+        slotOf k =
+          case findIndex (holds k) slots of
+            Just x -> (x, False)
+            Nothing -> case findIndex isFree slots of
+                         Just x -> (x, False)
+                         Nothing -> (turn, True)
 
     interface
       lookup k =
@@ -47,26 +61,13 @@ mkCam =
           Nothing -> Nothing
 
       learn k v =
-        let mhit  = findIndex (holds k) slots
-            mfree = findIndex isFree slots
-            -- 已经在表里就原地更新，端设备换口时才认得出来；
-            -- 否则先填空位；都满了才轮换覆盖
-            i = case mhit of
-                  Just x -> x
-                  Nothing -> case mfree of
-                               Just x -> x
-                               Nothing -> turn
-            rotate = case mhit of
-                       Just _ -> False
-                       Nothing -> case mfree of
-                                    Just _ -> False
-                                    Nothing -> True
-        in do
-             (select tab i) := Slot { key = k; val = v; valid = True }
-             if rotate
-               then turn := if turn == fromInteger (valueOf n - 1)
-                              then 0 else turn + 1
-               else noAction
+        case slotOf k of
+          (i, rotate) -> do
+            (select tab i) := Slot { key = k; val = v; valid = True }
+            if rotate
+              then turn := if turn == fromInteger (valueOf n - 1)
+                             then 0 else turn + 1
+              else noAction
 
       evict k =
         case findIndex (holds k) slots of
@@ -78,3 +79,9 @@ mkCam =
         turn := 0
 
       dump = slots
+
+      place k =
+        case slotOf k of
+          (i, _) -> i
+
+      clearAt i = (select tab i) := empty
