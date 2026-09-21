@@ -1,6 +1,6 @@
 package Fakes;
 
-// 测试台共用的假设备与假发起方。放在 tb/ 里而不是 bsv/ 里：它们不进任何一次流片。
+// 测试台共用的假设备与假发起方。放在 htest/ 里而不是 hwsrc/ 里：它们不进任何一次流片。
 
 import Vector::*;
 import RegIf::*;

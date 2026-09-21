@@ -12,9 +12,9 @@ so adding a bus costs one adapter instead of a wrapper in every IP.
 
 | Plane | Contract | File |
 | :--: | :--: | :--: |
-| Control | `RegIf#(aw, dw)` — one `access(RegReq) -> RegRsp` method | `bsv/RegIf.bsv` |
+| Control | `RegIf#(aw, dw)` — one `access(RegReq) -> RegRsp` method | `hwsrc/RegIf.bsv` |
 | Data | `Get#(t)` / `Put#(t)` from the BSV standard library | — |
-| Interrupt | `Bool`, gathered by the fabric | `bsv/Fabric.bsv` |
+| Interrupt | `Bool`, gathered by the fabric | `hwsrc/Fabric.bsv` |
 
 An IP implements `RegIf` and knows nothing about any bus. Binding to APB4, AXI4-Lite,
 Wishbone or TL-UL happens at integration time, in the bus package.
