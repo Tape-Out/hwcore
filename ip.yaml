@@ -14,7 +14,7 @@ identity:
 area:
   probe:
     module: mkFabricProbe
-    src: tb/Probe.bsv
+    src: htest/Probe.bsv
     # 同 amba：孤立实测是下界，只核对不写回
     check: true
   base:
