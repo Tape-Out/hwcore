@@ -1,5 +1,7 @@
 package FabTb;
 
+import HwcoreCfg::*;
+
 import Vector::*;
 import RegIf::*;
 import Fabric::*;
@@ -7,24 +9,24 @@ import Fakes::*;
 
 (* synthesize *)
 module mkFabTb(Empty);
-  RegIf#(8, 32)     f <- mkFast;
-  RegTarget#(8, 32) s <- mkSlow(4);
+  RegIf#(AW, DW)     f <- mkFast;
+  RegTarget#(AW, DW) s <- mkSlow(4);
 
-  Vector#(1, Device#(8, 32))     fast = cons(device(8'h00, 8'h10, f, tagged Invalid), nil);
-  Vector#(1, SlowDevice#(8, 32)) slow = cons(slowDevice(8'h20, 8'h10, s, tagged Invalid), nil);
-  RegTarget#(8, 32) fab <- mkFabricT(fast, slow);
+  Vector#(1, Device#(AW, DW))     fast = cons(device('h00, 'h10, f, tagged Invalid), nil);
+  Vector#(1, SlowDevice#(AW, DW)) slow = cons(slowDevice('h20, 'h10, s, tagged Invalid), nil);
+  RegTarget#(AW, DW) fab <- mkFabricT(fast, slow);
 
   Reg#(Bit#(8))  ph   <- mkReg(0);
   Reg#(Bit#(16)) cyc  <- mkReg(0);
   Reg#(Bool)     bad  <- mkReg(False);
   Reg#(Bit#(16)) took <- mkReg(0);
   Reg#(Bool)     hold <- mkReg(False);
-  Reg#(RegReq#(8, 32)) q <- mkRegU;
+  Reg#(RegReq#(AW, DW)) q <- mkRegU;
 
   // 打一拍的快照：读 fab 的组合输出与写它的请求不能在同一条规则里
   Reg#(Bool)         rdy <- mkReg(True);
   Reg#(Bool)         rv  <- mkReg(False);
-  Reg#(RegRsp#(32))  rx  <- mkRegU;
+  Reg#(RegRsp#(DW))  rx  <- mkRegU;
 
   rule snap;
     rdy <= fab.ready;
@@ -45,7 +47,7 @@ module mkFabTb(Empty);
     case (ph)
       // 零等待那一路：写进去、读回来，而且必须**同一拍**就答
       0: action
-           q    <= RegReq { addr: 8'h04, write: True, wdata: 32'h1234ABCD, wstrb: 4'hF };
+           q    <= RegReq { addr: 'h04, write: True, wdata: 'h1234ABCD, wstrb: '1 };
            hold <= True;
            ph   <= 1;
          endaction
@@ -58,18 +60,18 @@ module mkFabTb(Empty);
              $display("FAIL a zero wait device did not answer in the same cycle");
              bad <= True;
            end
-           q    <= RegReq { addr: 8'h04, write: False, wdata: 0, wstrb: 4'hF };
+           q    <= RegReq { addr: 'h04, write: False, wdata: 0, wstrb: '1 };
            hold <= True;
            ph   <= 3;
          endaction
       3: action hold <= False; ph <= 4; endaction
       4: action
-           if (!rv || rx.rdata != 32'h1234ABCD) begin
+           if (!rv || rx.rdata != 'h1234ABCD) begin
              $display("FAIL zero wait read back %08h", rx.rdata);
              bad <= True;
            end
            // 慢设备那一路：请求要顶着，直到答上来
-           q    <= RegReq { addr: 8'h24, write: True, wdata: 32'h55AA55AA, wstrb: 4'hF };
+           q    <= RegReq { addr: 'h24, write: True, wdata: 'h55AA55AA, wstrb: '1 };
            hold <= True;
            took <= 0;
            ph   <= 5;
@@ -92,7 +94,7 @@ module mkFabTb(Empty);
                       took);
              bad <= True;
            end
-           q    <= RegReq { addr: 8'h24, write: False, wdata: 0, wstrb: 4'hF };
+           q    <= RegReq { addr: 'h24, write: False, wdata: 0, wstrb: '1 };
            hold <= True;
            took <= 0;
            ph   <= 7;
@@ -101,7 +103,7 @@ module mkFabTb(Empty);
       7: action
            took <= took + 1;
            if (rv) begin
-             if (rx.rdata != 32'h55AA55AA) begin
+             if (rx.rdata != 'h55AA55AA) begin
                $display("FAIL the slow device read back %08h, want 55AA55AA", rx.rdata);
                bad <= True;
              end

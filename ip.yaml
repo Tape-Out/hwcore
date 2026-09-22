@@ -15,7 +15,6 @@ area:
   probe:
     module: mkFabricProbe
     src: htest/Probe.bsv
-    # 同 amba：孤立实测是下界，只核对不写回
     check: true
   base:
     fixed: 25.0
@@ -25,16 +24,12 @@ area:
     error:
       bound: 0.15
       sign: two-sided
-      note: 'an assembly is not the sum of its instances: synthesis optimises across
-        the boundary. Measured ratios of assembly to instance sum ran 0.94 to 1.29
-        over 1/2/4 instances at 8/16/32 pins, so this term is an estimate with a two-sided
-        bound, unlike a leaf price which is an upper bound'
+      note: 'an assembly is not the sum of its instances: synthesis optimises across the boundary. Measured ratios of assembly to instance sum ran 0.94 to 1.29 over 1/2/4 instances at 8/16/32 pins, so this
+        term is an estimate with a two-sided bound, unlike a leaf price which is an upper bound'
   error:
     bound: 0.07
     sign: over
-    note: mkFabric decode measured at 1/2/4/8 instances came out between 24.08 
-      and -78.12; the model takes the maximum because it must never predict 
-      under
+    note: mkFabric decode measured at 1/2/4/8 instances came out between 24.08 and -78.12; the model takes the maximum because it must never predict under
   corner:
     tool: ecc
     pdk: ics55
@@ -42,3 +37,21 @@ area:
     measured: '2026-09-16'
     toolchain: bsc 2026.01 · yosys 0.68+195 · ecc 0.1.0a11
     gen_digest: sha256:f0098be21ffbf388
+params:
+  aw:
+    type: choice
+    values:
+    - 8
+    - 16
+    - 32
+    default: 8
+  dw:
+    type: choice
+    values:
+    - 32
+    - 64
+    default: 32
+test:
+  noarea:
+  - aw
+  - dw
